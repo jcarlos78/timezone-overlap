@@ -163,6 +163,53 @@
             ]);
         }
 
+        // Footer Component
+        function Footer() {
+            const { t } = useLanguage();
+
+            return React.createElement('footer', {
+                className: 'bg-white border-t border-gray-200 mt-12 py-8'
+            }, [
+                React.createElement('div', {
+                    key: 'container',
+                    className: 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'
+                }, [
+                    React.createElement('div', {
+                        key: 'content',
+                        className: 'flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4'
+                    }, [
+                        React.createElement('div', {
+                            key: 'powered-by',
+                            className: 'flex items-center space-x-2 text-gray-600'
+                        }, [
+                            React.createElement('span', {
+                                key: 'text',
+                                className: 'text-sm'
+                            }, t('poweredBy')),
+                            React.createElement('a', {
+                                key: 'link',
+                                href: 'https://kodie.org',
+                                target: '_blank',
+                                rel: 'noopener noreferrer',
+                                className: 'flex items-center space-x-2 hover:opacity-80 transition-opacity'
+                            }, [
+                                React.createElement('img', {
+                                    key: 'logo',
+                                    src: './logo/01 Logo - Full Color - Thick.png',
+                                    alt: 'Kodie.org Logo',
+                                    className: 'h-6 w-auto'
+                                }),
+                                React.createElement('span', {
+                                    key: 'site',
+                                    className: 'text-sm font-medium text-blue-600 hover:text-blue-700'
+                                }, 'kodie.org')
+                            ])
+                        ])
+                    ])
+                ])
+            ]);
+        }
+
         // Component for time zone selection
         function TimezoneSelector({ onAddTimezone }) {
             const { t } = useLanguage();
@@ -933,6 +980,8 @@
                                 </div>
                             </div>
                         )}
+
+                        <Footer />
                     </div>
                 </div>
             );

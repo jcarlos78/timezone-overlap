@@ -80,7 +80,10 @@ const translations = {
         language: 'Language',
         english: 'English',
         portuguese: 'Português',
-        dutch: 'Nederlands'
+        dutch: 'Nederlands',
+        
+        // Footer
+        poweredBy: 'Powered by'
     },
     pt: {
         // Títulos da página e cabeçalhos principais
@@ -162,7 +165,10 @@ const translations = {
         language: 'Idioma',
         english: 'English',
         portuguese: 'Português',
-        dutch: 'Nederlands'
+        dutch: 'Nederlands',
+        
+        // Rodapé
+        poweredBy: 'Desenvolvido por'
     },
     nl: {
         // Paginatitel en hoofdkoppen
@@ -244,6 +250,9 @@ const translations = {
         language: 'Taal',
         english: 'English',
         portuguese: 'Português',
-        dutch: 'Nederlands'
+        dutch: 'Nederlands',
+        
+        // Voettekst
+        poweredBy: 'Mogelijk gemaakt door'
     }
 };

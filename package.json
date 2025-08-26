@@ -6,7 +6,7 @@
   "scripts": {
     "start": "npx serve .",
     "dev": "npx serve .",
-    "build": "mkdir -p dist && cp index.html translations.js dist/"
+    "build": "mkdir -p dist && cp index.html translations.js dist/ && cp -r logo dist/"
   },
   "dependencies": {
     "react": "^18.2.0",

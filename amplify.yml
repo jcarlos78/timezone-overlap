@@ -9,6 +9,7 @@ frontend:
         - echo "No build process needed - static HTML app"
         - mkdir -p dist
         - cp index.html translations.js dist/
+        - cp -r logo dist/
         - echo "Build completed successfully"
   artifacts:
     baseDirectory: dist
