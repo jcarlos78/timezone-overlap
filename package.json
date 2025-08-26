@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "npx serve .",
-    "dev": "npx serve ."
+    "dev": "npx serve .",
+    "build": "mkdir -p dist && cp index.html dist/"
   },
   "dependencies": {
     "react": "^18.2.0",
