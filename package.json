@@ -1,12 +1,12 @@
 {
   "name": "timezone-overlap-app",
   "version": "1.0.0",
-  "description": "Interactive web app to visualize overlapping work hours across different time zones",
+  "description": "Interactive web application to visualize overlapping work hours across different time zones for global teams",
   "main": "index.js",
   "scripts": {
     "start": "npx serve .",
     "dev": "npx serve .",
-    "build": "mkdir -p dist && cp index.html dist/"
+    "build": "mkdir -p dist && cp index.html translations.js dist/"
   },
   "dependencies": {
     "react": "^18.2.0",
