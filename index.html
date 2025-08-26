@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Fusos Horários - Overlap de Equipes</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React and ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel Standalone for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Luxon for timezone handling -->
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+    
+    <style>
+        .timeline-grid {
+            background-image: repeating-linear-gradient(
+                to right,
+                transparent,
+                transparent 4.166%,
+                #e5e7eb 4.166%,
+                #e5e7eb calc(4.166% + 1px)
+            );
+        }
+        
+        .current-time-indicator {
+            background: linear-gradient(to bottom, #ef4444, #dc2626);
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+        
+        .overlap-highlight {
+            background: linear-gradient(135deg, #10b981, #059669);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            animation: pulse-subtle 2s ease-in-out infinite alternate;
+        }
+        
+        @keyframes pulse-subtle {
+            from { opacity: 0.8; }
+            to { opacity: 1; }
+        }
+        
+        .work-hours {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+        }
+        
+        .timezone-row {
+            transition: all 0.3s ease;
+        }
+        
+        .timezone-row:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { DateTime } = luxon;
+        const { useState, useEffect, useMemo } = React;
+
+        // Lista de fusos horários populares para seleção
+        const POPULAR_TIMEZONES = [
+            { value: 'America/Sao_Paulo', label: 'São Paulo, Brasil' },
+            { value: 'America/New_York', label: 'Nova York, EUA' },
+            { value: 'America/Los_Angeles', label: 'Los Angeles, EUA' },
+            { value: 'Europe/London', label: 'Londres, Reino Unido' },
+            { value: 'Europe/Paris', label: 'Paris, França' },
+            { value: 'Europe/Amsterdam', label: 'Amsterdã, Holanda' },
+            { value: 'Asia/Tokyo', label: 'Tóquio, Japão' },
+            { value: 'Asia/Shanghai', label: 'Xangai, China' },
+            { value: 'Asia/Kolkata', label: 'Mumbai, Índia' },
+            { value: 'Australia/Sydney', label: 'Sydney, Austrália' },
+            { value: 'Pacific/Auckland', label: 'Auckland, Nova Zelândia' },
+            { value: 'America/Mexico_City', label: 'Cidade do México, México' },
+            { value: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires, Argentina' },
+            { value: 'Europe/Berlin', label: 'Berlim, Alemanha' },
+            { value: 'Africa/Cairo', label: 'Cairo, Egito' }
+        ];
+
+        // Componente para seleção de fusos horários
+        function TimezoneSelector({ onAddTimezone }) {
+            const [selectedTimezone, setSelectedTimezone] = useState('');
+            const [workStart, setWorkStart] = useState('09:00');
+            const [workEnd, setWorkEnd] = useState('17:00');
+            const [searchTerm, setSearchTerm] = useState('');
+
+            const filteredTimezones = useMemo(() => {
+                return POPULAR_TIMEZONES.filter(tz => 
+                    tz.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    tz.value.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+            }, [searchTerm]);
+
+            const handleAdd = () => {
+                if (selectedTimezone && workStart && workEnd) {
+                    const timezone = POPULAR_TIMEZONES.find(tz => tz.value === selectedTimezone);
+                    onAddTimezone({
+                        id: Date.now(),
+                        timezone: selectedTimezone,
+                        label: timezone?.label || selectedTimezone,
+                        workStart,
+                        workEnd
+                    });
+                    setSelectedTimezone('');
+                    setSearchTerm('');
+                }
+            };
+
+            return (
+                <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">Adicionar Fuso Horário</h2>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Pesquisar Fuso Horário
+                            </label>
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Digite o nome da cidade..."
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <select
+                                value={selectedTimezone}
+                                onChange={(e) => setSelectedTimezone(e.target.value)}
+                                className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="">Selecione um fuso horário...</option>
+                                {filteredTimezones.map(tz => (
+                                    <option key={tz.value} value={tz.value}>
+                                        {tz.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Início do Expediente
+                            </label>
+                            <input
+                                type="time"
+                                value={workStart}
+                                onChange={(e) => setWorkStart(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Fim do Expediente
+                            </label>
+                            <input
+                                type="time"
+                                value={workEnd}
+                                onChange={(e) => setWorkEnd(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+                    
+                    <button
+                        onClick={handleAdd}
+                        disabled={!selectedTimezone || !workStart || !workEnd}
+                        className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                        Adicionar Fuso Horário
+                    </button>
+                </div>
+            );
+        }
+
+        // Componente para matriz de disponibilidade
+        function AvailabilityMatrix({ timezones, primaryTimezone }) {
+            const [currentTime, setCurrentTime] = useState(DateTime.now());
+            
+            // Atualizar horário a cada minuto
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setCurrentTime(DateTime.now());
+                }, 60000);
+                return () => clearInterval(interval);
+            }, []);
+
+            if (!primaryTimezone || timezones.length < 2) return null;
+
+            const primaryTz = timezones.find(tz => tz.id === primaryTimezone);
+            if (!primaryTz) return null;
+
+            // Gerar horários do expediente do fuso primário
+            const [primaryStartHour, primaryStartMinute] = primaryTz.workStart.split(':').map(Number);
+            const [primaryEndHour, primaryEndMinute] = primaryTz.workEnd.split(':').map(Number);
+            
+            const workHours = [];
+            for (let hour = primaryStartHour; hour <= primaryEndHour; hour++) {
+                if (hour === primaryEndHour && primaryEndMinute === 0) break;
+                workHours.push(hour);
+            }
+
+            // Calcular disponibilidade de outros fusos para cada hora do fuso primário
+            const getAvailabilityForHour = (hour) => {
+                const baseTime = currentTime.setZone(primaryTz.timezone).set({ 
+                    hour, minute: 0, second: 0, millisecond: 0 
+                });
+
+                return timezones
+                    .filter(tz => tz.id !== primaryTimezone)
+                    .map(tz => {
+                        const timeInTz = baseTime.setZone(tz.timezone);
+                        const [startHour, startMinute] = tz.workStart.split(':').map(Number);
+                        const [endHour, endMinute] = tz.workEnd.split(':').map(Number);
+                        
+                        const workStartMinutes = startHour * 60 + startMinute;
+                        const workEndMinutes = endHour * 60 + endMinute;
+                        const currentMinutes = timeInTz.hour * 60 + timeInTz.minute;
+                        
+                        const isAvailable = currentMinutes >= workStartMinutes && currentMinutes < workEndMinutes;
+                        
+                        return {
+                            ...tz,
+                            timeInTz: timeInTz.toLocaleString(DateTime.TIME_24_SIMPLE),
+                            isAvailable,
+                            displayTime: timeInTz.toLocaleString(DateTime.TIME_24_SIMPLE)
+                        };
+                    });
+            };
+
+            return (
+                <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                    <div className="flex items-center mb-4">
+                        <svg className="w-6 h-6 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h2 className="text-xl font-bold text-gray-800">
+                            Disponibilidade Durante Seu Expediente ({primaryTz.label})
+                        </h2>
+                    </div>
+                    
+                    <p className="text-gray-600 mb-6">
+                        Veja quem está disponível durante cada hora do seu expediente para agendar reuniões:
+                    </p>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50">
+                                    <th className="border border-gray-200 px-4 py-3 text-left font-semibold text-gray-700">
+                                        Seu Horário ({primaryTz.label})
+                                    </th>
+                                    {timezones.filter(tz => tz.id !== primaryTimezone).map(tz => (
+                                        <th key={tz.id} className="border border-gray-200 px-4 py-3 text-center font-semibold text-gray-700">
+                                            {tz.label.split(',')[0]}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {workHours.map(hour => {
+                                    const availability = getAvailabilityForHour(hour);
+                                    const availableCount = availability.filter(a => a.isAvailable).length;
+                                    const totalCount = availability.length;
+                                    const allAvailable = availableCount === totalCount && totalCount > 0;
+                                    
+                                    return (
+                                        <tr key={hour} className={`${
+                                            allAvailable 
+                                                ? 'bg-green-50 hover:bg-green-100 border-l-4 border-l-green-500' 
+                                                : 'hover:bg-gray-50'
+                                        }`}>
+                                            <td className="border border-gray-200 px-4 py-3 font-medium">
+                                                <div className="flex items-center">
+                                                    {allAvailable && (
+                                                        <div className="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                                                    )}
+                                                    <span className={allAvailable ? 'font-bold text-green-800' : ''}>
+                                                        {hour.toString().padStart(2, '0')}:00
+                                                    </span>
+                                                </div>
+                                                {availableCount > 0 && (
+                                                    <span className={`ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                                        allAvailable 
+                                                            ? 'bg-green-200 text-green-900 border border-green-300' 
+                                                            : 'bg-green-100 text-green-800'
+                                                    }`}>
+                                                        {availableCount}/{totalCount} disponível
+                                                        {allAvailable && (
+                                                            <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        )}
+                                                    </span>
+                                                )}
+                                                {allAvailable && (
+                                                    <div className="text-xs text-green-700 font-medium mt-1">
+                                                        ⭐ Horário ideal para reunião
+                                                    </div>
+                                                )}
+                                            </td>
+                                            {availability.map(person => (
+                                                <td key={person.id} className="border border-gray-200 px-4 py-3 text-center">
+                                                    <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                                                        person.isAvailable 
+                                                            ? allAvailable 
+                                                                ? 'bg-green-200 text-green-900 border border-green-400' 
+                                                                : 'bg-green-100 text-green-800 border border-green-200'
+                                                            : 'bg-red-100 text-red-800 border border-red-200'
+                                                    }`}>
+                                                        <div className={`w-2 h-2 rounded-full mr-2 ${
+                                                            person.isAvailable ? 'bg-green-500' : 'bg-red-500'
+                                                        }`}></div>
+                                                        {person.displayTime}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 mt-1">
+                                                        {person.isAvailable ? 'Trabalhando' : 'Fora do expediente'}
+                                                    </div>
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Resumo de melhores horários */}
+                    <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h3 className="font-semibold text-blue-800 mb-2 flex items-center">
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Melhores Horários para Reuniões
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {workHours.map(hour => {
+                                const availability = getAvailabilityForHour(hour);
+                                const availableCount = availability.filter(a => a.isAvailable).length;
+                                const totalCount = availability.length;
+                                const percentage = (availableCount / totalCount) * 100;
+                                
+                                if (availableCount === 0) return null;
+                                
+                                return (
+                                    <div key={hour} className={`p-3 rounded-md border ${
+                                        percentage === 100 ? 'bg-green-100 border-green-300' :
+                                        percentage >= 50 ? 'bg-yellow-100 border-yellow-300' :
+                                        'bg-orange-100 border-orange-300'
+                                    }`}>
+                                        <div className="font-medium text-gray-800">
+                                            {hour.toString().padStart(2, '0')}:00
+                                        </div>
+                                        <div className="text-sm text-gray-600">
+                                            {availableCount}/{totalCount} pessoas ({Math.round(percentage)}%)
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Componente para exibir horários atuais alinhados
+        function CurrentTimeDisplay({ timezones, overlapData }) {
+            const [currentTime, setCurrentTime] = useState(DateTime.now());
+            
+            // Atualizar horário a cada minuto
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setCurrentTime(DateTime.now());
+                }, 60000); // Atualiza a cada 60 segundos
+                
+                return () => clearInterval(interval);
+            }, []);
+            
+            if (timezones.length === 0) return null;
+
+            return (
+                <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">Horários Atuais</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {timezones.map(tz => {
+                            const timezoneCurrentTime = currentTime.setZone(tz.timezone);
+                            const displayTime = timezoneCurrentTime.toLocaleString(DateTime.TIME_24_SIMPLE);
+                            const displayDate = timezoneCurrentTime.toLocaleString(DateTime.DATE_SHORT);
+                            
+                            return (
+                                <div key={tz.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                                    <h3 className="font-semibold text-gray-800 text-sm mb-1">{tz.label}</h3>
+                                    <div className="text-2xl font-bold text-blue-600">{displayTime}</div>
+                                    <div className="text-xs text-gray-500">{displayDate}</div>
+                                    <div className="text-xs text-gray-600 mt-1">
+                                        Expediente: {tz.workStart} - {tz.workEnd}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    
+                    {overlapData.hasCompleteOverlap && (
+                        <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-4">
+                            <h3 className="font-semibold text-green-800 mb-2 flex items-center">
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Janela de Sobreposição Global Encontrada:
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {overlapData.allOverlaps.map((overlap, index) => (
+                                    <div key={index} className="bg-white rounded-md p-3 border border-green-300">
+                                        <div className="font-medium text-green-800">{overlap.description}</div>
+                                        <div className="text-sm text-green-600 mt-1">
+                                            Horário ideal - todos estão trabalhando
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {!overlapData.hasCompleteOverlap && overlapData.hasAnyOverlap && timezones.length > 1 && (
+                        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h3 className="font-semibold text-blue-800 mb-2 flex items-center">
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Sobreposições Parciais
+                            </h3>
+                            <p className="text-blue-800">
+                                Não há um horário em que todos trabalhem simultaneamente, mas há sobreposições entre alguns fusos horários. 
+                                Use a matriz de disponibilidade abaixo para encontrar os melhores horários.
+                            </p>
+                        </div>
+                    )}
+                    
+                    {!overlapData.hasAnyOverlap && timezones.length > 1 && (
+                        <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                            <h3 className="font-semibold text-red-800 mb-2 flex items-center">
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                                Nenhuma Sobreposição
+                            </h3>
+                            <p className="text-red-800">
+                                Não há nenhum horário em comum entre os fusos horários selecionados. 
+                                Considere ajustar os horários de trabalho para criar janelas de colaboração.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Componente para uma linha de fuso horário na timeline
+        function TimezoneRow({ timezoneData, overlapData, currentHour }) {
+            const { id, timezone, label, workStart, workEnd } = timezoneData;
+            
+            // Calcular horário atual no fuso horário
+            const currentTime = DateTime.now().setZone(timezone);
+            const displayTime = currentTime.toLocaleString(DateTime.TIME_24_SIMPLE);
+            
+            // Calcular posições na timeline (24 horas = 100%)
+            const getPositionPercentage = (hour, minute = 0) => {
+                return ((hour + minute / 60) / 24) * 100;
+            };
+            
+            const [startHour, startMinute] = workStart.split(':').map(Number);
+            const [endHour, endMinute] = workEnd.split(':').map(Number);
+            
+            const workStartPos = getPositionPercentage(startHour, startMinute);
+            const workEndPos = getPositionPercentage(endHour, endMinute);
+            const workWidth = workEndPos - workStartPos;
+            
+            const currentTimePos = getPositionPercentage(currentTime.hour, currentTime.minute);
+
+            return (
+                <div className="timezone-row bg-white rounded-lg shadow-md p-4 mb-4">
+                    <div className="mb-3">
+                        <h3 className="font-semibold text-gray-800">{label}</h3>
+                        <p className="text-sm text-gray-600">
+                            Expediente: {workStart} - {workEnd}
+                        </p>
+                    </div>
+                    
+                    <div className="relative h-12 bg-gray-100 rounded-lg timeline-grid">
+                        {/* Horários de trabalho */}
+                        <div
+                            className="absolute top-1 bottom-1 work-hours rounded-md flex items-center justify-center text-white text-xs font-medium"
+                            style={{
+                                left: `${workStartPos}%`,
+                                width: `${workWidth}%`
+                            }}
+                        >
+                            Expediente
+                        </div>
+                        
+                        {/* Sobreposições */}
+                        {overlapData.allOverlaps && overlapData.allOverlaps.map((overlap, index) => (
+                            <div
+                                key={index}
+                                className="absolute top-0 bottom-0 overlap-highlight rounded-md border-2 border-green-400"
+                                style={{
+                                    left: `${overlap.startPos}%`,
+                                    width: `${overlap.width}%`
+                                }}
+                            />
+                        ))}
+                        
+                        {/* Indicador de hora atual */}
+                        <div
+                            className="absolute top-0 bottom-0 w-1 current-time-indicator rounded-full z-10"
+                            style={{ left: `${currentTimePos}%` }}
+                        />
+                        
+                        {/* Marcadores de hora */}
+                        {Array.from({ length: 25 }, (_, i) => (
+                            <div
+                                key={i}
+                                className="absolute top-0 bottom-0 flex items-end justify-center"
+                                style={{ left: `${(i / 24) * 100}%` }}
+                            >
+                                <span className="text-xs text-gray-500 bg-white px-1 rounded">
+                                    {i.toString().padStart(2, '0')}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // Componente de introdução quando não há fusos horários
+        function WelcomeMessage() {
+            return (
+                <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+                    <div className="mb-4">
+                        <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <h2 className="text-xl font-semibold text-gray-600 mb-2">
+                        Bem-vindo ao Visualizador de Fusos Horários
+                    </h2>
+                    <p className="text-gray-500 mb-4">
+                        Adicione pelo menos dois fusos horários para visualizar as sobreposições e encontrar os melhores horários para reuniões globais.
+                    </p>
+                    <div className="text-sm text-gray-400">
+                        💡 Dica: Comece adicionando os fusos horários da sua equipe usando o formulário acima
+                    </div>
+                </div>
+            );
+        }
+
+        // Componente principal da aplicação
+        function App() {
+            const [timezones, setTimezones] = useState([]);
+            const [primaryTimezone, setPrimaryTimezone] = useState(null);
+
+            // Adicionar fuso horário
+            const addTimezone = (timezoneData) => {
+                setTimezones(prev => {
+                    const newTimezones = [...prev, timezoneData];
+                    // Se não há fuso primário definido, defina o primeiro como primário
+                    if (!primaryTimezone) {
+                        setPrimaryTimezone(timezoneData.id);
+                    }
+                    return newTimezones;
+                });
+            };
+
+            // Remover fuso horário
+            const removeTimezone = (id) => {
+                setTimezones(prev => {
+                    const filtered = prev.filter(tz => tz.id !== id);
+                    // Se removeu o fuso primário, defina o primeiro restante como primário
+                    if (primaryTimezone === id) {
+                        setPrimaryTimezone(filtered.length > 0 ? filtered[0].id : null);
+                    }
+                    return filtered;
+                });
+            };
+
+            // Calcular sobreposições entre todos os fusos horários
+            const calculateOverlaps = useMemo(() => {
+                if (timezones.length < 2) return { allOverlaps: [], hasAnyOverlap: false };
+
+                const today = DateTime.now();
+
+                // Converter todos os horários de trabalho para minutos do dia em UTC
+                const workPeriods = timezones.map(tz => {
+                    const [startHour, startMinute] = tz.workStart.split(':').map(Number);
+                    const [endHour, endMinute] = tz.workEnd.split(':').map(Number);
+                    
+                    const startTime = today.setZone(tz.timezone).set({ 
+                        hour: startHour, 
+                        minute: startMinute, 
+                        second: 0, 
+                        millisecond: 0 
+                    }).toUTC();
+                    
+                    const endTime = today.setZone(tz.timezone).set({ 
+                        hour: endHour, 
+                        minute: endMinute, 
+                        second: 0, 
+                        millisecond: 0 
+                    }).toUTC();
+
+                    // Lidar com horários que cruzam meia-noite
+                    let startMinutes = startTime.hour * 60 + startTime.minute;
+                    let endMinutes = endTime.hour * 60 + endTime.minute;
+                    
+                    // Se o horário de fim é menor que o de início, significa que cruza meia-noite
+                    if (endMinutes < startMinutes) {
+                        endMinutes += 24 * 60; // Adicionar 24 horas
+                    }
+
+                    return {
+                        ...tz,
+                        startMinutes,
+                        endMinutes,
+                        crossesMidnight: endMinutes >= 24 * 60
+                    };
+                });
+
+                const allOverlaps = [];
+                let hasAnyOverlap = false;
+
+                // Função para verificar sobreposição considerando períodos que podem cruzar meia-noite
+                const getOverlapInUTC = (periods) => {
+                    // Normalizar todos os períodos para o mesmo sistema de referência
+                    const normalizedPeriods = periods.map(p => ({
+                        start: p.startMinutes % (24 * 60),
+                        end: p.endMinutes % (24 * 60),
+                        originalStart: p.startMinutes,
+                        originalEnd: p.endMinutes
+                    }));
+
+                    // Encontrar sobreposição no dia UTC (0-1440 minutos)
+                    let overlapStart = Math.max(...normalizedPeriods.map(p => p.start));
+                    let overlapEnd = Math.min(...normalizedPeriods.map(p => p.end));
+
+                    return { start: overlapStart, end: overlapEnd, isValid: overlapStart < overlapEnd };
+                };
+
+                // Verificar se há sobreposição entre TODOS os fusos horários
+                const globalOverlap = getOverlapInUTC(workPeriods);
+
+                if (globalOverlap.isValid) {
+                    hasAnyOverlap = true;
+                    const startHour = Math.floor(globalOverlap.start / 60);
+                    const startMinute = globalOverlap.start % 60;
+                    const endHour = Math.floor(globalOverlap.end / 60);
+                    const endMinute = globalOverlap.end % 60;
+
+                    const startPos = (globalOverlap.start / (24 * 60)) * 100;
+                    const width = ((globalOverlap.end - globalOverlap.start) / (24 * 60)) * 100;
+
+                    const formatTime = (hour, minute) => 
+                        `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+
+                    const duration = globalOverlap.end - globalOverlap.start;
+                    const hours = Math.floor(duration / 60);
+                    const minutes = duration % 60;
+
+                    allOverlaps.push({
+                        startPos,
+                        width,
+                        description: `${formatTime(startHour, startMinute)} - ${formatTime(endHour, endMinute)} UTC (${hours}h${minutes > 0 ? ` ${minutes}min` : ''})`,
+                        type: 'all'
+                    });
+                }
+
+                // Se não há sobreposição entre todos, verificar sobreposições parciais
+                if (!hasAnyOverlap) {
+                    // Verificar sobreposições entre pares de fusos horários
+                    for (let i = 0; i < workPeriods.length; i++) {
+                        for (let j = i + 1; j < workPeriods.length; j++) {
+                            const pairOverlap = getOverlapInUTC([workPeriods[i], workPeriods[j]]);
+                            
+                            if (pairOverlap.isValid) {
+                                hasAnyOverlap = true;
+                                break;
+                            }
+                        }
+                        if (hasAnyOverlap) break;
+                    }
+                }
+
+                return { 
+                    allOverlaps, 
+                    hasAnyOverlap,
+                    hasCompleteOverlap: allOverlaps.length > 0
+                };
+            }, [timezones]);
+
+            return (
+                <div className="min-h-screen bg-gray-50 py-8">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="text-center mb-8">
+                            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                                Visualizador de Sobreposição de Fusos Horários
+                            </h1>
+                            <p className="text-lg text-gray-600">
+                                Encontre os horários ideais para reuniões entre equipes globais
+                            </p>
+                        </div>
+
+                        <TimezoneSelector onAddTimezone={addTimezone} />
+                        
+                        {timezones.length === 0 ? (
+                            <WelcomeMessage />
+                        ) : (
+                            <>
+                                <CurrentTimeDisplay timezones={timezones} overlapData={calculateOverlaps} />
+                                
+                                {/* Seletor de fuso horário primário e gerenciamento */}
+                                <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h2 className="text-xl font-bold text-gray-800">Gerenciar Fusos Horários</h2>
+                                        <div className="text-sm text-gray-500">
+                                            {timezones.length} fuso{timezones.length !== 1 ? 's' : ''} adicionado{timezones.length !== 1 ? 's' : ''}
+                                        </div>
+                                    </div>
+                                    
+                                    {timezones.length > 1 && (
+                                        <p className="text-gray-600 mb-4">
+                                            <span className="font-medium">Selecione seu fuso horário principal</span> para ver a disponibilidade dos outros durante seu expediente:
+                                        </p>
+                                    )}
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {timezones.map(tz => (
+                                            <div
+                                                key={tz.id}
+                                                className={`relative p-4 rounded-lg border-2 transition-all ${
+                                                    primaryTimezone === tz.id
+                                                        ? 'border-blue-500 bg-blue-50 shadow-md'
+                                                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                {/* Botão de remover */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        removeTimezone(tz.id);
+                                                    }}
+                                                    className="absolute top-2 right-2 w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded-full flex items-center justify-center text-xs transition-colors"
+                                                    title="Remover fuso horário"
+                                                >
+                                                    ×
+                                                </button>
+                                                
+                                                {/* Área clicável para seleção */}
+                                                <button
+                                                    onClick={() => setPrimaryTimezone(tz.id)}
+                                                    className="w-full text-left"
+                                                    disabled={timezones.length === 1}
+                                                >
+                                                    <div className="flex items-center pr-8">
+                                                        <div className={`w-4 h-4 rounded-full mr-3 ${
+                                                            primaryTimezone === tz.id ? 'bg-blue-500' : 'bg-gray-300'
+                                                        }`}></div>
+                                                        <div className="flex-1">
+                                                            <div className="font-semibold text-gray-800">
+                                                                {tz.label}
+                                                                {primaryTimezone === tz.id && (
+                                                                    <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                                                        Principal
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-sm text-gray-600">
+                                                                {tz.workStart} - {tz.workEnd}
+                                                            </div>
+                                                            {timezones.length === 1 && (
+                                                                <div className="text-xs text-gray-500 mt-1">
+                                                                    Adicione mais fusos para comparar
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    {timezones.length === 0 && (
+                                        <div className="text-center text-gray-500 py-8">
+                                            <p>Nenhum fuso horário adicionado ainda.</p>
+                                            <p className="text-sm mt-1">Use o formulário acima para adicionar fusos horários.</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Matriz de Disponibilidade */}
+                                <AvailabilityMatrix timezones={timezones} primaryTimezone={primaryTimezone} />
+                                
+                                <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                                    <h2 className="text-xl font-bold text-gray-800 mb-4">
+                                        Timeline de Fusos Horários
+                                    </h2>
+                                    <div className="space-y-4">
+                                        {timezones.map(timezone => (
+                                            <TimezoneRow
+                                                key={timezone.id}
+                                                timezoneData={timezone}
+                                                overlapData={calculateOverlaps}
+                                                currentHour={DateTime.now().hour}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {timezones.length > 0 && (
+                            <div className="mt-8 bg-white rounded-lg shadow-lg p-6">
+                                <h3 className="font-semibold text-gray-800 mb-3">Legenda:</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                    <div className="flex items-center">
+                                        <div className="w-4 h-4 work-hours rounded mr-2"></div>
+                                        <span>Horário de Trabalho</span>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <div className="w-4 h-4 overlap-highlight rounded mr-2"></div>
+                                        <span>Sobreposição de Todos os Fusos</span>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <div className="w-1 h-4 current-time-indicator rounded mr-2"></div>
+                                        <span>Horário Atual</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Renderizar a aplicação
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>

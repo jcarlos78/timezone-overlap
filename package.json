@@ -1,0 +1,21 @@
+{
+  "name": "timezone-overlap-app",
+  "version": "1.0.0",
+  "description": "Interactive web app to visualize overlapping work hours across different time zones",
+  "main": "index.js",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx serve ."
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "luxon": "^3.4.4"
+  },
+  "devDependencies": {
+    "@babel/standalone": "^7.23.0"
+  },
+  "keywords": ["timezone", "react", "tailwind", "luxon", "overlap"],
+  "author": "Jose Menezes",
+  "license": "MIT"
+}
